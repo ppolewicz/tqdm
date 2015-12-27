@@ -277,6 +277,8 @@ class tqdm(object):
             WARNING: internal parameter - do not use.
             Use tqdm_gui(...) instead. If set, will attempt to use
             matplotlib animations for a graphical output [default: false].
+        stream  : stream, optional
+            TODO
 
         Returns
         -------
