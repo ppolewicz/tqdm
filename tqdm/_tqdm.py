@@ -15,6 +15,7 @@ from ._utils import _supports_unicode, _environ_cols_wrapper, _range, _unich, \
     _term_move_up
 import sys
 from time import time
+from functools import wraps
 
 
 __author__ = {"github.com/": ["noamraph", "obiwanus", "kmike", "hadim",
@@ -214,7 +215,7 @@ class tqdm(object):
                  file=sys.stderr, ncols=None, mininterval=0.1,
                  maxinterval=10.0, miniters=None, ascii=None, disable=False,
                  unit='it', unit_scale=False, dynamic_ncols=False,
-                 smoothing=0.3, nested=False, gui=False):
+                 smoothing=0.3, nested=False, gui=False, stream=None):
         """
         Parameters
         ----------
@@ -336,6 +337,7 @@ class tqdm(object):
         self.dynamic_ncols = dynamic_ncols
         self.smoothing = smoothing
         self.avg_rate = None
+        self.stream = stream
         # if nested, at initial sp() call we replace '\r' by '\n' to
         # not overwrite the outer progress bar
         self.nested = nested
@@ -359,17 +361,22 @@ class tqdm(object):
         return len(self.iterable) if self.iterable else self.total
 
     def __enter__(self):
+        if self.stream is not None:
+            self.stream.__enter__()
         return self
 
     def __exit__(self, *exc):
         self.close()
-        return False
+        if self.stream is None:
+            return False
+        return self.stream.__exit__(*exc)
 
     def __iter__(self):
         ''' Backward-compatibility to use: for x in tqdm(iterable) '''
 
         # Inlining instance variables as locals (speed optimisation)
-        iterable = self.iterable
+        iterable = self.iterable or self.stream
+        print '__iter__'
 
         # If the bar is disabled, then just walk the iterable
         # (note: keep this check outside the loop for performance)
@@ -548,6 +555,85 @@ class tqdm(object):
         Set/modify description of the progress bar.
         """
         self.desc = desc + ': ' if desc else ''
+
+
+    def fail(self, *args, **kwargs):
+        raise Exception()
+
+    def disable_stream_interface(self):
+        self.raw = self.fail
+        self.detach = self.fail
+        self.read = self.fail
+        self.read1 = self.fail
+        self.readinto = self.fail
+        self.peek = self.fail
+        self.write = self.fail
+        self.flush = self.fail
+
+    def _update_with_output_len(func):
+        print 'decorator'
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            self = args[0]  # decorator needs to access it somehow
+            result = func(*args, **kwargs)
+            self.update(len(result))
+            #print 'wrapper', len(result), self
+            return result
+        return wrapper
+
+    # io.BufferedIOBase interface
+    @property
+    def raw(self):
+        return self.stream.raw
+
+    def detach(self):
+        return self.stream.detach()
+
+    @_update_with_output_len
+    def read(self, *args, **kwargs):
+        #print 'read', args, kwargs
+        return self.stream.read(*args, **kwargs)
+
+    @_update_with_output_len
+    def read1(self, *args, **kwargs):
+        # read1() is not supported by the `file` object, but
+        # io.BufferedIOBase and others have it. In worst case,
+        # the user is going to see this:
+        # AttributeError: 'file' object has no attribute 'read1'
+        #return self.stream.read1(*args, **kwargs)
+        return self.stream.read(*args, **kwargs)
+
+    @_update_with_output_len
+    def readinto(self, b):
+        print 'readinto'
+        return self.stream.readinto(b)
+
+    @_update_with_output_len
+    def readlines(self, *args, **kwargs):
+        if args or kwargs:
+            raise NotImplementedError(
+                'tqdm does not support readlines() calls with parameters'
+            )
+        result = []
+        for line in self.stream:
+            result.append(line)
+            self.update(len(line))
+        return result
+
+    # io.BufferedReader interface
+    def peek(self, *args, **kwargs):
+        print 'peek :/'
+        return self.stream.peek(*args, **kwargs)
+
+    # io.BufferedWriter interface
+    def write(self, data):
+        print 'write'
+        amount = self.stream.write(data)
+        self.update(amount)
+        return amount
+
+    def flush(self):
+        return self.stream.flush()
 
 
 def trange(*args, **kwargs):

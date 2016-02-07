@@ -100,6 +100,22 @@ Instantiation outside of the loop allows for manual control over ``tqdm()``:
     for char in pbar:
         pbar.set_description("Processing %s" % char)
 
+Stream-based
+~~~~~~~~~~~~~~
+
+Wrap ``tqdm()`` around a file-like object:
+
+.. code:: python
+
+    for line in tqdm(stream=open('big-file.dat', 'rb')):
+        print char
+
+``trange(i)`` is a special optimised instance of ``tqdm(range(i))``:
+
+.. code:: python
+
+    for i in trange(100):
+        pass
 Manual
 ~~~~~~
 
@@ -141,7 +157,7 @@ Documentation
                    file=sys.stderr, ncols=None, mininterval=0.1,
                    maxinterval=10.0, miniters=None, ascii=None, disable=False,
                    unit='it', unit_scale=False, dynamic_ncols=False,
-                   smoothing=0.3, nested=False):
+                   smoothing=0.3, nested=False, stream=None):
 
 Parameters
 ~~~~~~~~~~
@@ -202,6 +218,8 @@ Parameters
     Whether this iterable is nested in another one also managed by
     `tqdm` [default: False]. Allows display of multiple, nested
     progress bars.
+* stream  : `io.BufferedReader` or `io.BufferedWriter`, optional  
+    File-like object to decorate with a progressbar.
 
 Returns
 ~~~~~~~
